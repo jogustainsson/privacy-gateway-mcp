@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "privacy-gateway-mcp"
+version = "0.1.0"
+description = "An MCP server that redacts sensitive entities and enforces a deterministic egress policy before any prompt reaches a cloud LLM."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Joshua Gustainsson" }]
+keywords = ["mcp", "llm", "privacy", "anonymization", "guardrails", "human-in-the-loop"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "mcp>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+privacy-gateway-mcp = "privacy_gateway_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/privacy_gateway_mcp"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
