@@ -35,6 +35,28 @@ def test_redacted_text_has_no_residual():
     assert not a.has_residual_sensitive(red.redacted)
 
 
+def test_card_placeholder_does_not_swallow_the_following_space():
+    """The card span must end on a digit.
+
+    A trailing separator inside the match glued the placeholder to the next
+    word: "card [CARD_1]for the move".
+    """
+    a = Anonymizer()
+    red = a.redact("Charge $1.250.000 to card 4532 7712 3456 7890 for the move.")
+    assert "[CARD_1] for the move." in red.redacted
+    assert a.rehydrate(red.redacted, red.mapping) == (
+        "Charge $1.250.000 to card 4532 7712 3456 7890 for the move."
+    )
+
+
+def test_card_is_detected_with_each_separator_style():
+    a = Anonymizer()
+    for raw in ("4532771234567890", "4532 7712 3456 7890", "4532-7712-3456-7890"):
+        red = a.redact(f"card {raw} ok")
+        assert any(e.type is EntityType.CARD for e in red.entities), raw
+        assert red.redacted.endswith(" ok"), raw
+
+
 def test_secret_takes_priority_over_number_like_matches():
     a = Anonymizer()
     red = a.redact("key sk-ABCDEFGHIJKLMNOPQRST here")

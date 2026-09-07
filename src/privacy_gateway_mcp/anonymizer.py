@@ -32,7 +32,10 @@ _DETECTORS: list[tuple[EntityType, re.Pattern[str]]] = [
     # Chilean RUT, e.g. 12.345.678-5 or 12345678-K
     (EntityType.RUT, re.compile(r"\b\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]\b")),
     # Card-like: 13-19 digits, optionally grouped by spaces or hyphens.
-    (EntityType.CARD, re.compile(r"\b(?:\d[ -]?){13,19}\b")),
+    # The span must END on a digit: with (?:\d[ -]?){13,19} the trailing
+    # separator was greedy and got swallowed into the match, so the
+    # placeholder came out glued to the next word ("[CARD_1]for the move").
+    (EntityType.CARD, re.compile(r"\b\d(?:[ -]?\d){12,18}\b")),
     (EntityType.IPV4, re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")),
     # Chilean mobile / international phone: +56 9 1234 5678, 912345678, etc.
     (EntityType.PHONE, re.compile(r"(?<![\w.])\+?(?:56)?\s?9(?:\s?\d){8}(?![\w])")),
