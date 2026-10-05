@@ -27,7 +27,10 @@ from .types import Entity, EntityType
 # more specific / higher-risk categories are listed first.
 _DETECTORS: list[tuple[EntityType, re.Pattern[str]]] = [
     # API keys / tokens with well-known prefixes (before generic number matching).
-    (EntityType.SECRET, re.compile(r"\b(?:sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,})\b")),
+    # The sk- class allows '-' and '_' so hyphenated keys are caught: Anthropic
+    # 'sk-ant-api03-...' and OpenAI 'sk-proj-...'. The old 'sk-[A-Za-z0-9]{16,}'
+    # stopped at the first hyphen (after "ant") and let the key through.
+    (EntityType.SECRET, re.compile(r"\b(?:sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,})\b")),
     (EntityType.EMAIL, re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
     # Chilean RUT, e.g. 12.345.678-5 or 12345678-K
     (EntityType.RUT, re.compile(r"\b\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]\b")),

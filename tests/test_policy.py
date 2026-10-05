@@ -18,6 +18,11 @@ def test_secret_is_hard_blocked():
     assert _eval("the key is sk-ABCDEFGHIJKLMNOPQRST", EgressPolicy()) is Decision.BLOCKED
 
 
+def test_anthropic_key_is_hard_blocked():
+    key = "sk-ant-api03-AbC1_dEf2-GhIj3kLmNoPqRsTuVwXyZ012345"
+    assert _eval(f"here is my key {key}", EgressPolicy()) is Decision.BLOCKED
+
+
 def test_card_is_hard_blocked():
     assert _eval("card 4111 1111 1111 1111", EgressPolicy()) is Decision.BLOCKED
 

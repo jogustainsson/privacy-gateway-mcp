@@ -63,6 +63,17 @@ def test_secret_takes_priority_over_number_like_matches():
     assert any(e.type is EntityType.SECRET for e in red.entities)
 
 
+def test_detects_anthropic_api_key():
+    """Anthropic keys 'sk-ant-...' were slipping through: the old regex stopped at
+    the first hyphen. They must be detected as SECRET and never reach the cloud."""
+    a = Anonymizer()
+    text = "deploy with ANTHROPIC_API_KEY=sk-ant-api03-AbC1_dEf2-GhIj3kLmNoPqRsTuVwXyZ012345 now"
+    red = a.redact(text)
+    assert any(e.type is EntityType.SECRET for e in red.entities)
+    assert "sk-ant-" not in red.redacted
+    assert not a.has_residual_sensitive(red.redacted)
+
+
 def test_response_placeholders_rehydrate():
     a = Anonymizer()
     red = a.redact("send it to ana@acme.cl")
