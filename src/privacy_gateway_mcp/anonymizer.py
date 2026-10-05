@@ -23,25 +23,42 @@ from dataclasses import dataclass
 
 from .types import Entity, EntityType
 
+# Módulo 11: valida el dígito verificador de un RUT escrito SIN puntos ni guion
+# (ej. "123456785"), para no marcar cualquier número de 8-9 dígitos como RUT.
+def _rut_concat_valido(s: str) -> bool:
+    cuerpo, dv = s[:-1], s[-1].lower()
+    if not cuerpo.isdigit():
+        return False
+    suma, mul = 0, 2
+    for ch in reversed(cuerpo):
+        suma += int(ch) * mul
+        mul = 2 if mul == 7 else mul + 1
+    resto = 11 - (suma % 11)
+    esperado = "0" if resto == 11 else "k" if resto == 10 else str(resto)
+    return esperado == dv
+
+
 # Detectors in priority order. Earlier patterns win when spans overlap, so the
-# more specific / higher-risk categories are listed first.
-_DETECTORS: list[tuple[EntityType, re.Pattern[str]]] = [
-    # API keys / tokens with well-known prefixes (before generic number matching).
-    # The sk- class allows '-' and '_' so hyphenated keys are caught: Anthropic
-    # 'sk-ant-api03-...' and OpenAI 'sk-proj-...'. The old 'sk-[A-Za-z0-9]{16,}'
-    # stopped at the first hyphen (after "ant") and let the key through.
+# more specific / higher-risk categories are listed first. An optional third
+# element is a validator(matched_text) -> bool that filters candidate matches.
+_DETECTORS: list[tuple] = [
+    # API keys / tokens. The sk- class allows '-' and '_' so hyphenated keys are
+    # caught: Anthropic 'sk-ant-api03-...' and OpenAI 'sk-proj-...'.
     (EntityType.SECRET, re.compile(r"\b(?:sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,})\b")),
     (EntityType.EMAIL, re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
-    # Chilean RUT, e.g. 12.345.678-5 or 12345678-K
+    # Chilean RUT con separadores, e.g. 12.345.678-5 or 12345678-K
     (EntityType.RUT, re.compile(r"\b\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]\b")),
     # Card-like: 13-19 digits, optionally grouped by spaces or hyphens.
-    # The span must END on a digit: with (?:\d[ -]?){13,19} the trailing
-    # separator was greedy and got swallowed into the match, so the
-    # placeholder came out glued to the next word ("[CARD_1]for the move").
+    # The span must END on a digit (trailing separators got glued to the next word).
     (EntityType.CARD, re.compile(r"\b\d(?:[ -]?\d){12,18}\b")),
     (EntityType.IPV4, re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")),
     # Chilean mobile / international phone: +56 9 1234 5678, 912345678, etc.
     (EntityType.PHONE, re.compile(r"(?<![\w.])\+?(?:56)?\s?9(?:\s?\d){8}(?![\w])")),
+    # Chilean landline (fijo). Requires +56 or an area code in parentheses to evitar
+    # falsos positivos: "+56 32 2673000", "+56 2 2345 6789", "(32) 267 3000".
+    (EntityType.PHONE, re.compile(r"(?<![\w.])(?:\+?56[\s-]?\d{1,2}|\(\d{1,2}\))[\s-]?\d{3,4}[\s-]?\d{4}(?![\w])")),
+    # Chilean RUT SIN puntos ni guion (ej. "123456785"): candidato validado por módulo 11.
+    (EntityType.RUT, re.compile(r"(?<![\w.-])\d{7,8}[\dkK](?![\w.-])"), _rut_concat_valido),
     # Money: $1.234.567, USD 1,200.50, 600000 CLP
     (EntityType.MONEY, re.compile(
         r"(?:(?:US)?\$\s?\d[\d.,]*|\b\d[\d.,]*\s?(?:USD|CLP|MXN|EUR|pesos|dólares|d[oó]lares))",
@@ -73,8 +90,12 @@ class Anonymizer:
         """
         spans: list[tuple[int, int, EntityType, str]] = []
         taken: list[tuple[int, int]] = []
-        for etype, pattern in self._detectors:
+        for det in self._detectors:
+            etype, pattern = det[0], det[1]
+            validator = det[2] if len(det) > 2 else None
             for m in pattern.finditer(text):
+                if validator is not None and not validator(m.group()):
+                    continue  # candidate rejected (e.g. RUT with invalid check digit)
                 start, end = m.start(), m.end()
                 if any(start < t_end and end > t_start for t_start, t_end in taken):
                     continue  # overlaps a higher-priority match already claimed

@@ -74,6 +74,28 @@ def test_detects_anthropic_api_key():
     assert not a.has_residual_sensitive(red.redacted)
 
 
+def test_detects_chilean_landline():
+    a = Anonymizer()
+    for raw in ("+56 32 2673000", "+56 2 2345 6789", "(32) 267 3000"):
+        red = a.redact(f"llámame al {raw} hoy")
+        assert any(e.type is EntityType.PHONE for e in red.entities), raw
+        assert not a.has_residual_sensitive(red.redacted), raw
+
+
+def test_detects_rut_without_separators():
+    """RUT escrito sin puntos ni guion (12.345.678-5 -> 123456785), validado por módulo 11."""
+    a = Anonymizer()
+    red = a.redact("mi rut es 123456785 gracias")
+    assert any(e.type is EntityType.RUT for e in red.entities)
+    assert "123456785" not in red.redacted
+
+
+def test_number_with_wrong_check_digit_is_not_a_rut():
+    a = Anonymizer()
+    red = a.redact("el folio 123456780 del sistema")  # mismo cuerpo, DV equivocado
+    assert not any(e.type is EntityType.RUT for e in red.entities)
+
+
 def test_response_placeholders_rehydrate():
     a = Anonymizer()
     red = a.redact("send it to ana@acme.cl")
